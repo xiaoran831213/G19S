@@ -1,0 +1,22 @@
+# History files
+.Rhistory
+
+# Example code in package build process
+*-Ex.R
+
+# R data files from past sessions
+.RData
+.Rdata
+
+# RStudio files
+.Rproj.user/
+
+# xtong: raw genome data, journal referernce and binaries
+raw
+bin
+out
+rpt
+ref
+
+# emacs backups
+*~
