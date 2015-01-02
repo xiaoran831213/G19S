@@ -1,7 +1,7 @@
 library(CompQuadForm)
-hwu<-new.env();
+HWU<-new.env();
 
-hwu$core<-function(y,K,geno,X=NULL,center.geno=F,gsim=c("add","eq","dist"),appx=c("davis","normal"))
+HWU$core<-function(y,K,geno,X=NULL,center.geno=F,gsim=c("add","eq","dist"),appx=c("davis","normal"))
 {
 	if(center.geno) geno<-apply(geno,2,map.std)
 	n<-length(as.vector(y));
@@ -34,7 +34,7 @@ hwu$core<-function(y,K,geno,X=NULL,center.geno=F,gsim=c("add","eq","dist"),appx=
 	}
 	else if(gsim=="dist")
 	{
-		mt.geno=hwu$weight.gaussian(geno);
+		mt.geno=HWU$weight.gaussian(geno);
 	}
 	
 	wt<- ( mt.geno ) * K
@@ -68,29 +68,21 @@ hwu$core<-function(y,K,geno,X=NULL,center.geno=F,gsim=c("add","eq","dist"),appx=
 	return (list(U=U,p=p.value,coef=coef))
 }
 
-hwu$HWU<-function(Tn,K,geno,X=NULL,center.geno=F,gsim=c("add","eq","dist"),appx=c("davis","normal"))
+HWU$run<-function(Tn,K,geno,X=NULL,center.geno=F,gsim=c("add","eq","dist"),appx=c("davis","normal"))
 {
 	appx<-match.arg(appx);
 	gsim<-match.arg(gsim);
-	hwu$core(Tn,K,geno,X,center.geno,gsim=gsim,appx=appx);
+	HWU$core(Tn,K,geno,X,center.geno,gsim=gsim,appx=appx);
 }
 
-hwu$NHWU<-function(Tn,geno,X=NULL,center.geno=F,gsim=c("add","eq"),appx=c("davis","normal"))
-{
-	appx<-match.arg(appx);
-	gsim<-match.arg(gsim);
-	K<-matrix(1,nrow(geno),nrow(geno));
-	hwu$core(Tn,K,geno,X,center.geno,gsim=gsim,appx=appx);
-}
-
-hwu$map.std.norm<-function(y)
+HWU$map.std.norm<-function(y)
 {
 	y<-rank(y);
 	y<-(y-0.5)/length(y);
 	qnorm(y)
 }
 
-hwu$map.std<-function(y)
+HWU$map.std<-function(y)
 {
 	y<-y-mean(y)
 	sdy<-sd(y)
@@ -98,9 +90,9 @@ hwu$map.std<-function(y)
 	y
 }
 
-hwu$weight.gaussian<-function(x,weight=NULL)
+HWU$weight.gaussian<-function(x,weight=NULL)
 {
-	x<-apply(x,2,map.std.norm);
+	x<-apply(x,2, HWU$map.std.norm);
 	if(is.null(weight)) weight<-rep(1,ncol(x));
 	weight<-weight/sum(weight)/2;
 	
@@ -114,7 +106,7 @@ hwu$weight.gaussian<-function(x,weight=NULL)
 	wt
 }
 
-hwu$weight.cov<-function(x,weight=NULL)
+HWU$weight.cov<-function(x,weight=NULL)
 {
 	x<-apply(x,2,map.std.norm);
 	if(is.null(weight)) weight<-rep(1,ncol(x));
@@ -128,7 +120,7 @@ hwu$weight.cov<-function(x,weight=NULL)
 	wt
 }
 
-hwu$collapse.burden<-function(x)
+HWU$collapse.burden<-function(x)
 {
 	x<-as.matrix(x);
 	w <- apply(x, 2, mean, na.rm = T)/2;
