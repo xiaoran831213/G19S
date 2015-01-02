@@ -6,7 +6,7 @@ PCA <- new.env();
 PCA$std <- function(gmx, maf, rst=F)
 {
     whr <- 'dat/pca.std.bin';
-    if(rst==T & !file.exists(whr))
+    if(rst==T | !file.exists(whr))
     {
         idx <- which(maf>0.05);
         gmx <- gmx[idx,];
@@ -33,7 +33,7 @@ PCA$std <- function(gmx, maf, rst=F)
 PCA$cov <- function(gmx, rst=F)
 {
     whr='dat/pca.cov.bin';
-    if(rst==T & !file.exists(whr))
+    if(rst==T | !file.exists(whr))
     {
         out <- cov(gmx);
         save(out, file=whr);
@@ -49,4 +49,6 @@ PCA$run <- function(gno, rst=F)
 {
     gmx <- PCA$std(gno$gmx, gno$map$MAF, rst);
     cov <- PCA$cov(gmx, rst);
+    egn <- eigen(cov, symmetric=T);
+    list(val=egn$values, vec=egn$vectors, cov=cov);
 }
