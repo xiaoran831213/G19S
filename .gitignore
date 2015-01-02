@@ -17,6 +17,7 @@ bin
 out
 rpt
 ref
+dat
 
 # emacs backups
 *~
