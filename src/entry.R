@@ -1,8 +1,10 @@
 require(data.table);
 source('src/analysis.R');
 
+CTL <- new.env();
+
 ## read phenotype
-getPhe <- function()
+CTL$phe <- function()
 {
     ## phenotypes and covariants
     phe<-read.table(file= 'dat/phe.csv', header=TRUE, sep=',', as.is=T);
@@ -30,7 +32,7 @@ getPhe <- function()
 }
 
 ## read genotype
-getGno <- function(rst=F)
+CTL$gno <- function(rst=F)
 {
     bin <- 'dat/gno.bin'
     if(file.exists(bin) & !rst)
@@ -72,7 +74,7 @@ getGno <- function(rst=F)
 }
 
 ## read gene outression
-getExp <- function(rst=F)
+CTL$exp <- function(rst=F)
 {
     bin <- 'dat/exp.bin';
     whr <- 'dat/exp.csv';
@@ -108,7 +110,7 @@ getExp <- function(rst=F)
 }
 
 ## read gene ranges
-getRng <- function(rst=F)
+CTL$rng <- function(rst=F)
 {
     bin <- 'dat/rng.bin';
     whr <- 'dat/rng.txt';
@@ -133,10 +135,16 @@ getRng <- function(rst=F)
     out;
 }
 
-start <- function()
+## get covarant names
+CTL$cvr <- function()
+{
+    c('AGE', 'SEX', 'MED','SMK');
+}
+
+CTL$run <- function()
 {
     ## prepare file surfix and covariant
-    cvr<-c('AGE', 'SEX', 'MED','SMK');
+    cvr<-CTL$cvr();
     sfx<-paste(cvr, collapse = '.')
 
     lsp<-list();
