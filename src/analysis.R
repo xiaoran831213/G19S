@@ -13,7 +13,7 @@ ANL <- new.env();
 ## cvr --- covariants
 ##     row: individual
 ##     col: varaint
-ANL$one<-function(gmx, emx, rsp, cvr)
+ANL$one<-function(gmx, emx, rsp, cvr, gsm='dist')
 {
     ## return list
     out <- list();
@@ -23,33 +23,33 @@ ANL$one<-function(gmx, emx, rsp, cvr)
 
     ## only test genotype, weight matrix is I
     k<-matrix(1, nrow(gmx), nrow(gmx));
-    r<-HWU$run(Tn=rsp, geno=g, X=cvr, K=k, gsim = 'add', appx = 'davis');
+    r<-HWU$run(Tn=rsp, geno=g, X=cvr, K=k, gsim = gsm, appx = 'davis');
     out$G.u <- r$u;
     out$G.p <- r$p;
 
     ## combined test, weight matrix is transcriptome similarity
     k<-HWU$weight.gaussian(emx);
-    r<-HWU$run(Tn=rsp, geno=g, X=cvr, K=k, gsim = 'add', appx = 'davis');
+    r<-HWU$run(Tn=rsp, geno=g, X=cvr, K=k, gsim = gsm, appx = 'davis');
     out$GT.u <- r$u;
     out$GT.p <- r$p;
 
     ## test for existance of transcriptome(heterogeneity) effect, normalize
     ## previous transcriptome similarity matrix to zero center
     k<-k-mean(k);
-    r<-HWU$run(Tn=rsp, geno=g, X=cvr, K=k, gsim = 'add', appx = 'davis');
+    r<-HWU$run(Tn=rsp, geno=g, X=cvr, K=k, gsim = gsm, appx = 'davis');
     out$T.u <- r$u;
     out$T.p <- r$p;
 
     out;
 }
 
-ANL$run<-function(gno, exp, rng, phe, rsp, cov)
+ANL$run<-function(gno, exp, rng, phe, rsp, cov, pcs=NULL, gsm='dist')
 {
     phe<-phe[, c("IID", rsp, cov)];
-    phe<-hlp$clrMss(phe);
+    phe<-HLP$clrMss(phe);
 
     ## align tables by indidivual id
-    tmp<-hlp$algIdv(gno, exp, phe);
+    tmp<-HLP$algIdv(gno, exp, phe);
     gdx<-tmp$gdx;
     edx<-tmp$edx;
     pdx<-tmp$pdx;
@@ -61,13 +61,19 @@ ANL$run<-function(gno, exp, rng, phe, rsp, cov)
     ## response and covariate
     rsp<-as.matrix(phe[pdx, rsp], rownames.force = F);   # response variable
     cov<-as.matrix(phe[pdx, cov], rownames.force = F);   # covariants
+    if(!is.null(pcs))
+    {
+        cov <- cbind(cov, pcs[gdx,]);
+    }
     
-    ## prepare output
-    nrg<-nrow(rng);
-    out<-matrix(data = NA, nrow = nrg, ncol = 6L);
-    err<-rep.int(NA, nrg);
+    ## prepare output containers
+    nrg <- nrow(rng);
+    out <- matrix(data = NA, nrow = nrg, ncol = 3L); # 3 types of test
+    nvr <- rep.int(NA, nrg); # number of variants in gene ranges
+    err <- rep.int(NA, nrg); # error recorde
     
     ## iterate genome variants
+    require(data.table);
     for(i in 1L:nrg)
     {
         if(i %% 0xFF == 0x01L)
@@ -89,12 +95,17 @@ ANL$run<-function(gno, exp, rng, phe, rsp, cov)
         bp1<-rng[i,BP1]-5001L;
         bp2<-rng[i,BP2]+5001L;
         idx<-gno$map[CHR==chr][bp1<POS&POS<bp2, IDX];
-        if(length(idx)==0)
+
+        ## record number of variants in the i.th gene range.
+        nvr[i] <- length(idx); 
+        if(nvr[i]==0)
         {
-            err[i]<-'NVR=0' # number of variants is zero for range i
+            err[i]<-'NVR=0' # no variants in gene i.
             next;
         }
-        gmx<-gno$gmx[idx,, drop=F]; # row->variant, col->individual
+
+        ## row->variant, col->individual
+        gmx<-gno$gmx[idx,, drop=F]; 
         
         ## save population mean genotype value for later imputation
         avg<-apply(gmx, 1L, mean, na.rm=T); 
@@ -103,7 +114,7 @@ ANL$run<-function(gno, exp, rng, phe, rsp, cov)
         gmx<-gmx[,gdx, drop=F];  # row->variant, col->individual
         
         ## exclude degenerated variants
-        idx<-hlp$gmxClr(gmx);
+        idx<-HLP$gmxClr(gmx);
         if(length(idx)==0L)
         {
             err[i]<-'NES=0' ## number of effect sample is zero
@@ -118,7 +129,7 @@ ANL$run<-function(gno, exp, rng, phe, rsp, cov)
         ## call U sta
         gmx<-t(gmx); # row->individual, col->genomic variant
         emx<-t(emx); # row->individual, col->RNA probe
-        r<-ANL$one(gmx, emx, rsp, cov);
+        r<-ANL$one(gmx, emx, rsp, cov, gsm);
         if (inherits(r, "try-error"))
         {
             err[i] <- errMsg(p);
@@ -126,13 +137,27 @@ ANL$run<-function(gno, exp, rng, phe, rsp, cov)
         }
         
         ## record result.
-        out[i,] <- c(r$GT.u, r$GT.p, r$G.u, r$G.p, r$T.u, r$T.p);
+        out[i,] <- c(r$GT.p, r$G.p, r$T.p);
     }
+    cat('\n');
     out<-data.table(
         rng, 
-        GT=out[,2L], 
-        G=out[,4L],
-        T=out[,6L],
+        GT=out[,1L],
+        G=out[,2L],
+        T=out[,3L],
+        MIN=pmin(out[,1L], out[,2L], out[,3L]),
+        NVR=nvr,
         ERR=err, key='CHR,BP1,BP2');
     out;
 }
+
+ANL$qvl <- function(out)
+{
+    i <- which(is.na(out$ERR));
+    out$GT[i] <- p.adjust(out$GT[i], 'fdr');
+    out$G[i] <- p.adjust(out$G[i], 'fdr');
+    out$T[i] <- p.adjust(out$T[i], 'fdr');
+    out$MIN <- pmin(out$GT, out$G, out$T);
+    out;
+}
+

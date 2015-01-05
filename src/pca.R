@@ -3,6 +3,12 @@ PCA <- new.env();
 
 ## standardize gnotype matrix
 ## gmx ---- genotype matrix, row variant, column individual
+## gno -- packed genotype
+##     gmx -- genotype matrix, row variant major
+##     idv -- individuals
+##     map -- genotype map
+## min_maf -- minimum MAF constraint.
+## min_dst -- minimum variant distance constraint.
 PCA$std <- function(gno, min_maf=0.05, min_dst=1000L, rst=F)
 {
     bin <- 'dat/pca.std.bin';
@@ -57,6 +63,8 @@ PCA$std <- function(gno, min_maf=0.05, min_dst=1000L, rst=F)
 }
 
 ## adjust genotype against LD
+## gmx -- genotype matrix, row indexes genome variant observaions,
+##     column indices individual variable
 PCA$adj <- function(gmx, rst=F, max_LD=1)
 {
     ## check cached result
@@ -119,6 +127,8 @@ PCA$adj <- function(gmx, rst=F, max_LD=1)
     out;
 }
 
+## calculate covariance square matrix
+## dat -- row majored observations
 PCA$cov <- function(dat, rst=F)
 {
     ## check cached binery
@@ -138,16 +148,19 @@ PCA$cov <- function(dat, rst=F)
     out;
 }
 
-PCA$run <- function(gno, rst=F)
+PCA$run <- function(gno, rst=F, dst=5000L, adj=T)
 {
     cat('standardize variants\n');
-    t <- system.time(gmx <- PCA$std(gno, rst=rst)$gmx);
+    t <- system.time(gmx <- PCA$std(gno, min_dst=dst, rst=rst)$gmx);
     print(t);
 
-    cat('adjust for LD\n');
-    t <- system.time(gmx <- PCA$adj(gmx, rst=rst)$adj);
-    print(t);
-    
+    if(adj)
+    {
+        cat('adjust for LD\n');
+        t <- system.time(gmx <- PCA$adj(gmx, rst=rst)$adj);
+        print(t);
+    }
+
     cat('get between individual covariance\n');
     t <- system.time(cov <- PCA$cov(gmx, rst=rst));
     print(t);
@@ -156,9 +169,10 @@ PCA$run <- function(gno, rst=F)
     system.time(egn <- eigen(cov, symmetric=T));
     print(t);
 
-    list(val=egn$values, vec=egn$vectors, cov=cov);
+    list(val=egn$values, ldv=egn$vectors, cov=cov);
 }
 
+## clean cached binary files.
 PCA$clr <- function()
 {
     lsf <- dir('dat', 'pca.*.bin');
@@ -173,4 +187,47 @@ PCA$clr <- function()
         cbind(lsf, ret);
     }
     ret
+}
+
+## output PCs
+##     pcs -- output of principle component analysis.
+##     frm -- index first component to output
+##     n ---- number of component to output
+PCA$out <- function(pcs, frm=1L, n=10L, pfx='P')
+{
+    ## loading vectors
+    ldv <- pcs$ldv;
+
+    ## correct number of PCs to print
+    n <- min(n, ncol(ldv)-frm+1L)
+    to <- frm+n-1L;
+
+    ## find maximun number of digits
+    d <- 1L;
+    i <- to;
+    if (i >= 10000L)
+    {
+        i <- i %/% 10000L;
+        d <- d+4L;
+    }
+    if (i >= 100L)
+    {
+        i <- i %/% 100L;
+        d <- d+2L;
+    }
+    if (i >= 10L)
+    {
+        i <- i %/% 10L;
+        d <- d+1L;
+    }
+
+    ## header format
+    h <- paste(pfx, '%0', d, 'd', sep='');
+
+    ## format header
+    idx <- frm:to;
+    h <- sprintf(fmt=h, idx);
+
+    ## create output
+    matrix(ldv[,idx], nrow(ldv), n, dimnames=list(NULL,h));
 }

@@ -135,33 +135,135 @@ CTL$rng <- function(rst=F)
     out;
 }
 
-## get covarant names
-CTL$cvr <- function()
+CTL$pcs <- function()
 {
-    c('AGE', 'SEX', 'MED','SMK');
+    pcs <- read.table(file='dat/pcs.ldv', header=T, sep='\t', as.is=T);
+    pcs$IID <- NULL;
+    as.matrix(pcs);
 }
 
-CTL$run <- function()
+CTL$run <- function(
+    pck=NULL,
+    pcs=NULL,
+    cvr=c('AGE', 'SEX', 'MED','SMK'),
+    rsp=c('DBP', 'SBP', 'HTN'))
 {
+    bin=format.Date(Sys.Date(), 'dat/run.%y-%m-%d %H:%M:%S');
+    
     ## prepare file surfix and covariant
-    cvr<-CTL$cvr();
-    sfx<-paste(cvr, collapse = '.')
+    cat('fatching materials\n');
+    gno <- CTL$gno();
+    exp <- CTL$exp();
+    rng <- CTL$rng();
+    phe <- CTL$phe();
 
-    lsp<-list();
-    for(rsp in c('HTN', 'SBP', 'DBP'))
+    ## rng <- rng[1L:100L,]; #debug perposep
+    if(!is.null(pck))
+        rng <- rng[pck,];
+    
+    tmr <- list();
+    out <- list();
+    for(y in rsp)
     {
-        lsp[[rsp]] <- system.time(out<-run_std(gno, exp, rng, phe, rsp, cvr));
-        whr<-sprintf('dat/%s.%s.%s', rsp, sfx, 'out');
-        write.table(out, whr, row.names = F, quote = F, sep = '\t');
-        
-        rpt<-data.frame(
-            CHR=out$CHR, BP1=out$BP1, BP2=out$BP2, GEN=out$GEN, PRB=out$PRB,
-            HWP=format(out$HWP, digits = 3L, scientific = T, trim=T),
-            NWP=format(out$NWP, digits = 3L, scientific = T, trim=T),
-            PWP=format(out$PWP, digits = 3L, scientific = T, trim=T),
-            row.names = NULL, stringsAsFactors = F);
-        whr<-sprintf('dat/%s.%s.%s', rsp, sfx, 'rpt');
-        write.table(rpt, whr, row.names = F, quote = F, sep = '\t');
-        gc();
+        cat('\ranalysing phenotype: ', y, '\n');
+        t <- system.time(o<-ANL$run(gno, exp, rng, phe, y, cvr, pcs));
+        out[[y]] <- o;
+        tmr[[y]] <- t;
     }
+    out[['PCS']] <- pcs;
+    out[['TMR']] <- tmr;
+    save(out, file=bin);
+
+    print(tmr);
+    out;
+}
+
+CTL$rpt <- function(out, dst=NULL, order=F)
+{
+    if(order)
+        out <- CTL$odr(out, lowest=F, simple=F);
+
+    out <- format(out, trim=T, digits=3L, scientific=T);
+    if(!is.null(dst))
+    {
+        write.table(out, dst, quote=F, sep='\t');
+        out <- dst;
+    }
+    out;
+}
+
+CTL$odr <- function(out, lowest=T, simple=T)
+{
+    odr <- out[order(MIN),];
+    if(lowest)
+    {
+        odr <- odr[odr[,list(IDX=min(.I)), by=GEN][,IDX],];
+    }
+    if(simple)
+    {
+        odr <- odr[, list(GEN, GT, G, T, MIN)];
+    }
+    odr;
+}
+
+CTL$qqp <- function(OUT, dst=NULL)
+{
+    ## quantiles of uniform distrubution on [0, 1]
+    qunf=seq(from=0,to=1,length=nrow(OUT$SBP));
+
+    ## create file
+    if(!is.null(dst))
+    {
+        png(dst, width=3, height=1, units="in",res=900, pointsize=2);
+    }
+    
+    ## save plot settings
+    pardefault <- par(no.readonly = T)
+
+    par(mfrow=c(1, 3));
+
+    qqplot(y=OUT$SBP$GT, x=qunf, xlab="U(0,1)", main="SBP", ylab="p-value");
+    qqline(y=OUT$SBP$GT, distribution=function(p) qunif(p,0,1), prob=c(0,1), col=2);
+
+    qqplot(y=OUT$DBP$GT, x=qunf, xlab="U(0,1)", main="DBP", ylab="");
+    qqline(y=OUT$DBP$GT, distribution=function(p) qunif(p,0,1), prob=c(0,1), col=2);
+
+    qqplot(y=OUT$HTN$GT, x=qunf, xlab="U(0,1)", main="HTN", ylab="");
+    qqline(y=OUT$HTN$GT, distribution=function(p) qunif(p,0,1), prob=c(0,1), col=2);
+
+    ## restore plot settings
+    pardefault <- par(pardefault)
+
+    ## release file
+    if(!is.null(dst))
+    {
+        dev.off();
+    }
+}
+
+CTL$t15 <- function(OUT, dst=0L)
+{
+    sbp <- CTL$odr(OUT$SBP, simple=F)[1:5,];
+    sbp <- cbind(PHE='SBP', sbp);
+
+    dbp <- CTL$odr(OUT$DBP, simple=F)[1:5,];
+    dbp <- cbind(PHE='DBP', dbp);
+
+    htn <- CTL$odr(OUT$HTN, simple=F)[1:5,];
+    htn <- cbind(PHE='HTN', htn);
+
+    t15 <- rbind(sbp, dbp, htn);
+    t15$ERR <- NULL;
+
+    if(is.character(dst))
+    {
+        t15 <- format(t15, trim=T, digits=3, scientific=T)
+        write.table(t15, dst, quote=F, sep='\t', row.names=F);
+        t15 <- dst;
+    }
+    if(dst==0L)
+    {
+        t15 <- t15[,list(PHE,GEN,GT,G,T,MIN)];
+    }
+    t15;
 }
