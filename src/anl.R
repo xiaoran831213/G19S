@@ -1,5 +1,5 @@
-source('src/hwu.core.R')
-source('src/helper.R')
+source('src/hwu.R')
+source('src/hlp.R')
 
 ANL <- new.env();
 

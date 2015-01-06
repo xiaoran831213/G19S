@@ -1,5 +1,5 @@
 require(data.table);
-source('src/analysis.R');
+source('src/anl.R');
 
 CTL <- new.env();
 
