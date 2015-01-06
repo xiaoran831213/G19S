@@ -294,13 +294,12 @@ BZA$pic <- function(r, out=NULL, res=1.0, ...)
 ##    row ---- variant
 ##    col ---- function
 ##    for a genotype matrix, one column is one sample's genotype
-##    for a function matrix, one column is one sample's function
 ## ... additional function matrix, must be indentical in dimension
 ## time --- time frame to take sample from the functions.
-BZA$dff <- function(fmx, ..., time)
+BZA$df1 <- function(fmx, ..., time)
 {
     ## list of fitted functions
-    lsf <- list(fun, ...);
+    lsf <- list(fmx, ...);
     
     ## number of individuals
     S <- ncol(fmx);
@@ -329,9 +328,91 @@ BZA$dff <- function(fmx, ..., time)
     }
     
     ## average PSD at two ends of each sample interval.
-    df <- (df[p,]+df[q,])/2;
+    df <- (df[p,]+df[q,]);
 
     ## integration over M-1 sample intervals
-    df <- crossprod(dt, df);
-    df/sum(dt);
+    df <- drop(crossprod(dt, df)/2);
+
+    ## fill distance matrix
+    dm <- matrix(0,0, nrow=S, ncol=S);
+    for(k in 1L:ncol(C))
+    {
+        dm[C[1L,k], C[2L,k]] <- df[k];
+    }
+    dm;
+}
+
+BZA$df2 <- function(fmx, ..., time)
+{
+    ## list of fitted functions
+    lsf <- list(fmx, ...);
+    
+    ## number of individuals
+    S <- ncol(fmx);
+
+    ## number of sample time
+    M <- length(time);
+    
+    ## all pair combinations
+    C <- combn(S,2L);
+
+    ## helper indices
+    p <- 2L:M;
+    q <- p-1L;
+
+    # M-1 sample intervals
+    dt <- time[p]-time[q];
+
+    ## get high dimensional pairwise square distance(PSD) at each sample
+    ## point by adding up PSD of all functions.
+    dm <- matrix(0, S, S);
+    for(f in lsf)
+    {
+        for(k in 1L:ncol(C))
+        {
+            i <- C[1L,k];
+            j <- C[2L,k];
+            df <- (f[,i]-f[,j])^2;
+            df <- df[p]+df[q];
+            dm[i,j] <- dm[i,j]+sum(df*dt);
+        }
+    }
+    dm/2;
+}
+
+BZA$df3 <- function(fmx, ..., time)
+{
+    ## list of fitted functions
+    lsf <- list(fmx, ...);
+    
+    ## number of individuals
+    S <- ncol(fmx);
+
+    ## number of sample time
+    M <- length(time);
+    
+    ## all pair combinations
+    C <- combn(S,2L);
+
+    ## helper indices
+    p <- 2L:M;
+    q <- p-1L;
+
+    # M-1 sample intervals
+    dt <- time[p]-time[q];
+
+    ## get high dimensional pairwise square distance(PSD) at each sample
+    ## point by adding up PSD of all functions.
+    dm <- matrix(0, S, S);
+    s <- 1L:S;
+    for(f in lsf)
+    {
+        dm <- dm + outer(X=s, Y=s, FUN=function(i,j)
+        {
+            df <- (f[,i]-f[,j])^2;
+            df <- df[p,]+df[q,];
+            crossprod(dt, df);
+        });
+    }
+    dm/2;
 }

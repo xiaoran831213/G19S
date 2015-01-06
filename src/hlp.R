@@ -68,9 +68,28 @@ HLP$getGvr<-function(gno, chr=0L, bp1=0L, bp2=0L, wnd=0L)
     idx<-gno$map[CHR==chr][bp1<POS&POS<bp2, IDX];
     list(gmx=gno$gmx[idx,, drop=F], map=gno$map[idx,, drop=F], idv=gno$idv);
 }
-HLP$getLstGvr <- function(gno, pos, wnd=0L)
+
+HLP$getGvr <- function(gno, rng, wnd=0L)
 {
-    
+    map <- gno$map;
+    gmx <- gno$gmx;
+    lsg <- list();
+    for(i in 1L:nrow(rng))
+    {
+        chr <- rng[i, CHR];
+        bp1 <- rng[i, BP1] -1 - wnd;
+        bp2 <- rng[i, BP2] +1 + wnd;
+        idx <- map[CHR==chr][bp1<POS & POS<bp2, IDX];
+        tag <- paste('G', rng[i, GEN], sep='.');
+        gen <- list();
+        gen$gmx <- gmx[idx,,drop=F];
+        gen$map <- map[idx,,drop=F];
+        gen$idv <- gno$idv;
+        lsg[[tag]] <- gen;
+    }
+    lsg$rng <- rng;
+    lsg$wnd <- wnd;
+    lsg;
 }
 
 HLP$getGvn<-function(gno, chr, bp1, bp2, wnd=0L)
