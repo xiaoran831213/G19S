@@ -167,3 +167,41 @@ HLP$gld <- function(rng, rut='dat/gen', rdc=T)
         out <- gen;
     out;
 }
+
+HLP$mktab <- function(lst)
+{
+    ## number of row, number of columns
+    n <- length(lst);                   # row
+    m <- length(lst[[1]]);              # col
+
+    ## column heads
+    h <- names(lst[[1]]);
+
+    ## column types
+    t <- rep(NA, times=m);
+    mtx <- matrix(character(), nrow=n, ncol=m, dimnames=list(NULL, h));
+
+    i <- 0L;
+    while(i < n)
+    {
+        i <- i+1L;
+        mtx[i,] <- as.character(lst[[i]]);
+        j <- which(is.na(t))
+        if(length(j)<1L)
+            break;
+        t[j] <- sapply(lst[[i]], class);
+    }
+    while(i < n)
+    {
+        i <- i+1L;
+        mtx[i,] <- as.character(lst[[i]]);
+    }
+
+    ## the data frame
+    d <- as.data.frame(mtx, stringsAsFactors=F);
+    for(i in 1L:m)
+    {
+        d[[i]] <- as(d[[i]], t[i]);
+    }
+    d;
+}

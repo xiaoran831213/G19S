@@ -22,24 +22,21 @@ ANL$one <- function(gmx, emx, rsp, cvr, gsm='dist')
     ## join genotype into one dimensional variable
     g <- HWU$collapse.burden(gmx);
 
-    ## only test genotype, weight matrix is I
-    k<-matrix(1, nrow(gmx), nrow(gmx));
-    r<-HWU$run(Tn=rsp, geno=g, X=cvr, K=k, gsim = gsm, appx = 'davis');
-    out$G.u <- r$u;
-    out$G.p <- r$p;
-
     ## combined test, weight matrix is transcriptome similarity
     k<-HWU$weight.gaussian(emx);
     r<-HWU$run(Tn=rsp, geno=g, X=cvr, K=k, gsim = gsm, appx = 'davis');
-    out$GT.u <- r$u;
-    out$GT.p <- r$p;
+    out$GT <- r$p;
+
+    ## only test genotype, weight matrix is I
+    i<-matrix(1, nrow(gmx), nrow(gmx));
+    r<-HWU$run(Tn=rsp, geno=g, X=cvr, K=i, gsim = gsm, appx = 'davis');
+    out$G <- r$p;
 
     ## test for existance of transcriptome(heterogeneity) effect, normalize
     ## previous transcriptome similarity matrix to zero center
     k<-k-mean(k);
     r<-HWU$run(Tn=rsp, geno=g, X=cvr, K=k, gsim = gsm, appx = 'davis');
-    out$T.u <- r$u;
-    out$T.p <- r$p;
+    out$T <- r$p;
 
     out;
 }
@@ -52,12 +49,12 @@ ANL$bza <- function(gmx, pos, emx, rsp, cvr)
 
     wg <- exp(-df);
     we <- HWU$weight.gaussian(emx);
-    out$GT.p <- dg2(rsp, cvr, wg, we);
+    out$GT <- dg2(rsp, cvr, wg, we);
 
     we <- we-mean(we);
-    out$T.p <- dg2(rsp, cvr, wg, we);
+    out$T <- dg2(rsp, cvr, wg, we);
 
-    out$G.p <- dg2(rsp, cvr, wg);
+    out$G <- dg2(rsp, cvr, wg);
 
     out;
 }
@@ -189,8 +186,8 @@ ANL$run2<-function(exp, rng, phe, rsp, cov, pcs=NULL, imp=T, FUN=ANL$one, ...)
     pdx <- match(iid, phe$IID);
     
     ## integrity check
-    stopifnot(identical(phe$IID[pdx], gno$idv[gdx]));
-    stopifnot(identical(phe$IID[pdx], exp$idv[edx]));
+    stopifnot(identical(idv[gdx], phe$IID[pdx]));
+    stopifnot(identical(idv[gdx], exp$idv[edx]));
     
     ## response and covariate
     rsp<-as.matrix(phe[pdx, rsp], rownames.force = F);   # response variable
@@ -203,6 +200,7 @@ ANL$run2<-function(exp, rng, phe, rsp, cov, pcs=NULL, imp=T, FUN=ANL$one, ...)
     ## prepare output containers
     nrg <- nrow(rng);
     out <- matrix(data = NA, nrow = nrg, ncol = 3L); # 3 types of test
+    out <- list();
     nvr <- rep.int(0L, nrg); # number of variants in gene ranges
     err <- rep.int(NA, nrg); # error recorde
     
@@ -266,11 +264,13 @@ ANL$run2<-function(exp, rng, phe, rsp, cov, pcs=NULL, imp=T, FUN=ANL$one, ...)
         }
         
         ## record result.
-        out[i,] <- c(r$GT.p, r$G.p, r$T.p);
+        ## out[i,] <- c(r$GT.p, r$G.p, r$T.p);
+        out[[length(out)+1L]] <- r;
 
         ## report progress.
         HLP$shwPrg(nrg, i, 256L);
     }
+    out <- HLP$mktab(out);
     out<-data.table(
         rng,
         GT=out[,1L], G=out[,2L], T=out[,3L],
