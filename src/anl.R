@@ -1,5 +1,6 @@
 source('src/hwu.R')
 source('src/hlp.R')
+source('src/bza.R')
 
 ANL <- new.env();
 
@@ -13,7 +14,7 @@ ANL <- new.env();
 ## cvr --- covariants
 ##     row: individual
 ##     col: varaint
-ANL$one<-function(gmx, emx, rsp, cvr, gsm='dist')
+ANL$one <- function(gmx, emx, rsp, cvr, gsm='dist')
 {
     ## return list
     out <- list();
@@ -43,7 +44,25 @@ ANL$one<-function(gmx, emx, rsp, cvr, gsm='dist')
     out;
 }
 
-ANL$run<-function(gno, exp, rng, phe, rsp, cov, pcs=NULL, gsm='dist')
+ANL$bza <- function(gmx, pos, emx, rsp, cvr)
+{
+    out <- list();
+    bz <- BZA$fit(gmx, pos);
+    df <- BZA$dff(f$gmx, f$pos);
+
+    wg <- exp(-df);
+    we <- HWU$weight.gaussian(emx);
+    out$GT.p <- dg2(rsp, cvr, wg, we);
+
+    we <- we-mean(we);
+    out$T.p <- dg2(rsp, cvr, wg, we);
+
+    out$G.p <- dg2(rsp, cvr, wg);
+
+    out;
+}
+    
+ANL$run<-function(gno, exp, rng, phe, rsp, cov, pcs=NULL, imp=T, FUN=ANL$one, ...)
 {
     phe<-phe[, c("IID", rsp, cov)];
     phe<-HLP$clrMss(phe);
@@ -76,11 +95,6 @@ ANL$run<-function(gno, exp, rng, phe, rsp, cov, pcs=NULL, gsm='dist')
     require(data.table);
     for(i in 1L:nrg)
     {
-        if(i %% 0xFF == 0x01L)
-        {
-            cat('\r', round(i*100L/nrg, 2L), '%');
-        }
-        
         ## get expression matrix
         prb<-rng[i,PRB];
         emx<-exp$emx[exp$prb==prb, edx, drop=F]; # row->probe, col->indvidual
@@ -106,7 +120,8 @@ ANL$run<-function(gno, exp, rng, phe, rsp, cov, pcs=NULL, gsm='dist')
 
         ## row->variant, col->individual
         gmx<-gno$gmx[idx,, drop=F]; 
-        
+        stopifnot(identical(gmx, HLP$gld(rng[i,])$gmx));
+
         ## save population mean genotype value for later imputation
         avg<-apply(gmx, 1L, mean, na.rm=T); 
         
@@ -122,14 +137,18 @@ ANL$run<-function(gno, exp, rng, phe, rsp, cov, pcs=NULL, gsm='dist')
         }
         gmx<-gmx[idx,,drop=F];
         
-        ## asign population mean genotype value to NA
-        for(j in 1L:nrow(gmx))
-            gmx[j, is.na(gmx[j,])]<-avg[j];
+        ## asign population mean genotype value to NA if imputation
+        ## is requested.
+        if(imp)
+        {
+            for(j in 1L:nrow(gmx))
+                gmx[j, is.na(gmx[j,])]<-avg[j];
+        }
         
         ## call U sta
         gmx<-t(gmx); # row->individual, col->genomic variant
         emx<-t(emx); # row->individual, col->RNA probe
-        r<-ANL$one(gmx, emx, rsp, cov, gsm);
+        r<-FUN(gmx, emx, rsp, cov, ...);
         if (inherits(r, "try-error"))
         {
             err[i] <- errMsg(p);
@@ -138,8 +157,10 @@ ANL$run<-function(gno, exp, rng, phe, rsp, cov, pcs=NULL, gsm='dist')
         
         ## record result.
         out[i,] <- c(r$GT.p, r$G.p, r$T.p);
+
+        ## report progress.
+        HLP$shwPrg(nrg, i, 256L);
     }
-    cat('\n');
     out<-data.table(
         rng, 
         GT=out[,1L],

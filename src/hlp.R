@@ -99,3 +99,71 @@ HLP$getGvn<-function(gno, chr, bp1, bp2, wnd=0L)
     gvn<-gno$map[CHR==chr][bp1<POS&POS<bp2, .N];
     gvn;
 }
+
+## show progress on screen
+HLP$shwPrg <- function(n, i, f=1L)
+{
+    if(i==n)
+    {
+        cat('\r, 100%\n');
+    }
+    else
+    {
+        if(f==1L | i%%f ==1L)
+            cat('\r', round(i*100L/n, 2L), '%');            
+    }
+}
+
+## save genes to files according to given range list and genotype
+HLP$gsv <- function(gno, rng, wnd=5000L, rut='dat/gen')
+{
+    require(data.table);
+
+    ## number of gene regions
+    n <- nrow(rng);
+    
+    for(i in 1L:n)
+    {
+        r <- as.list(rng[i,]);
+        
+        ## get genome range for gene region i.
+        gmx <- NULL;
+        map <- gno$map[CHR==r$CHR][r$BP1-1L-wnd<POS & POS<r$BP2+1L+wnd,];
+        if(nrow(map)>0L)
+            gmx <- gno$gmx[map$IDX, ,drop=F];
+        
+        ## get unique record name and file name
+        whr <- sprintf('%s/G%04X', rut, r$SEQ);
+        
+        ## pack and save
+        gen <- list(
+            seq=r$SEQ, chr=r$CHR, bp1=r$BP1, bp2=r$BP2, wnd=wnd,
+            gen=r$GEN, prb=r$PRB,
+            gmx=gmx, map=map, idv=gno$idv);
+        save(gen, file=whr);
+
+        ## report progress
+        HLP$shwPrg(n, i, 100L);
+    }
+}
+
+## load genes from filees according to given rang list, they must
+## be first extracted from genotype data and saved.
+HLP$gld <- function(rng, rut='dat/gen', rdc=T)
+{
+    require(data.table);
+
+    out <- new.env()
+    for(i in 1L:nrow(rng))
+    {
+        seq <- sprintf('G%04X', rng[i, SEQ]);
+        load(sprintf('%s/%s', rut, seq));
+
+        tag <- rng[i, GEN];
+        key <- sprintf('%s.%s', seq, tag);
+        out[[key]] <- gen;
+    }
+    if(length(out)==1L & rdc)
+        out <- gen;
+    out;
+}

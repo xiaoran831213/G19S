@@ -177,7 +177,7 @@ BZA$fit <- function(gmx, pos, flp=1, frm=0, div=1, res=0)
     }
     M <- length(frm);
     t <- (frm-frm[1L])/(frm[M]-frm[1L]);
-
+    
     ## consider sample resolution
     if(res>0L)
     {
@@ -197,9 +197,10 @@ BZA$fit <- function(gmx, pos, flp=1, frm=0, div=1, res=0)
     if(flp>0L)
         gmx <- BZA$gfp(gmx);
 
-    ## standardize
+    ## standardize genotypes and positions to [0,1]
     gmx <- gmx/2;
-    pos <- (pos-pos[1L])/(pos[length(pos)] - pos[1L]);
+    pos <- pos-head(pos,1L);
+    pos <- pos/tail(pos,1L);
     
     ## expand position vector to matrix, each individual
     ## now has its own variant map.
@@ -300,7 +301,7 @@ BZA$pic <- function(r, out=NULL, res=1.0, ...)
 ##    for a genotype matrix, one column is one sample's genotype
 ## ... additional function matrix, must be indentical in dimension
 ## time --- time frame to take sample from the functions.
-BZA$dff <- function(fmx, ..., time)
+BZA$dff <- function(time, fmx, ..., norm=NULL)
 {
     ## list of fitted functions
     lsf <- list(fmx, ...);
@@ -321,19 +322,39 @@ BZA$dff <- function(fmx, ..., time)
     # M-1 sample intervals
     dt <- time[p]-time[q];
 
-    ## get high dimensional pairwise square distance(PSD) at each sample
-    ## point by adding up PSD of all functions.
+    ## iterate individual pairs, fill up pairwise distance matrix
     dm <- matrix(0, S, S);
-    for(f in lsf)
+    for(k in 1L:ncol(C))
     {
-        for(k in 1L:ncol(C))
+        i <- C[1L,k];
+        j <- C[2L,k];
+
+        ## get square distance between individual i and j
+        df <- 0;
+        for(f in lsf)
         {
-            i <- C[1L,k];
-            j <- C[2L,k];
-            df <- (f[,i]-f[,j])^2;
-            df <- df[p]+df[q];
-            dm[i,j] <- dm[i,j]+sum(df*dt);
+            df <- df + (f[,i]-f[,j])^2;
         }
+        
+        ## integrate over all sample intervals
+        dm[i,j] <- sum((df[p]+df[q])*dt)/2;
+        dm[j,i] <- dm[i,j];
     }
-    dm/2;
+
+    if(!is.null(norm))
+        dm <- norm(dm);
+    dm;
+}
+
+## scale to [0,1] normalization
+BZA$norm.01 <- function(x)
+{
+    r <- range(x);
+    (x-r[1L])/(r[2L]-r[1L]);
+}
+
+## rank normal quantile normalization
+BZA$norm.rq <- function(x)
+{
+    qnorm((rank(x)-0.5)/length(x));
 }

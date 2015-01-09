@@ -130,6 +130,10 @@ CTL$rng <- function(rst=F)
             key='CHR,BP1,BP2',
             CHR=chr, BP1=out$bp1[tmp], BP2=out$bp2[tmp],
             GEN=out$gen[tmp], PRB=out$prb[tmp]);
+
+        ## insert sequence number as the first column.
+        out <- data.table(SEQ=1L:nrow(out), out);
+        setkey(out, CHR, BP1, BP2);
         save(out, file=bin);
     }
     out;
@@ -214,7 +218,7 @@ CTL$qqp <- function(OUT, dst=NULL)
     ## create file
     if(!is.null(dst))
     {
-        png(dst, width=3, height=1, units="in",res=900, pointsize=2);
+        png(dst, width=3, height=1, units="in",res=900, pointsize=4);
     }
     
     ## save plot settings
@@ -241,15 +245,15 @@ CTL$qqp <- function(OUT, dst=NULL)
     }
 }
 
-CTL$t15 <- function(OUT, dst=0L)
+CTL$top <- function(OUT, n=5, dst=0L, lwp=T)
 {
-    sbp <- CTL$odr(OUT$SBP, simple=F)[1:5,];
+    sbp <- CTL$odr(OUT$SBP, lowest=lwp, simple=F)[1:n,];
     sbp <- cbind(PHE='SBP', sbp);
 
-    dbp <- CTL$odr(OUT$DBP, simple=F)[1:5,];
+    dbp <- CTL$odr(OUT$DBP, lowest=lwp, simple=F)[1:n,];
     dbp <- cbind(PHE='DBP', dbp);
 
-    htn <- CTL$odr(OUT$HTN, simple=F)[1:5,];
+    htn <- CTL$odr(OUT$HTN, lowest=lwp, simple=F)[1:n,];
     htn <- cbind(PHE='HTN', htn);
 
     t15 <- rbind(sbp, dbp, htn);
