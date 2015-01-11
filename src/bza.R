@@ -47,11 +47,13 @@ BZA$gfp <- function(gmx)
 
     ## deal with the rest, use previous(i-1 th.) variant as a
     ## reference, check and flip current variant if necessary
-    for(i in 2L:nrow(gmx))
+    i <- 1L;
+    n <- nrow(gmx);
+    while(i<n)
     {
+        i <- i+1L;
         out[i,] <- BZA$flp(out[i-1L,], gmx[i,]);
     }
-
     out;
 }
 
@@ -308,7 +310,7 @@ BZA$dff <- function(time, fmx, ..., norm=NULL)
     
     ## number of individuals
     S <- ncol(fmx);
-
+    
     ## number of sample time
     M <- length(time);
     
@@ -350,11 +352,16 @@ BZA$dff <- function(time, fmx, ..., norm=NULL)
 BZA$norm.01 <- function(x)
 {
     r <- range(x);
-    (x-r[1L])/(r[2L]-r[1L]);
+        x <- (x-r[1L])/(r[2L]-r[1L]);
+    x;
 }
 
 ## rank normal quantile normalization
 BZA$norm.rq <- function(x)
 {
-    qnorm((rank(x)-0.5)/length(x));
+    d <- dim(x);
+    x <- qnorm((rank(x)-0.5)/length(x));
+    x <- (x-min(x))/(max(x)-min(x));
+    dim(x) <- d;
+    x;
 }

@@ -172,36 +172,51 @@ HLP$mktab <- function(lst)
 {
     ## number of row, number of columns
     n <- length(lst);                   # row
-    m <- length(lst[[1]]);              # col
+
+    ## decide column count
+    m <- max(sapply(lst, length));      # col
 
     ## column heads
-    h <- names(lst[[1]]);
-
+    h <- Reduce(union, lapply(lst, names));
+    
     ## column types
-    t <- rep(NA, times=m);
-    mtx <- matrix(character(), nrow=n, ncol=m, dimnames=list(NULL, h));
+    t <- as.list(rep(NA, times=m));
+    names(t) <- h;
 
-    i <- 0L;
-    while(i < n)
+    ## decide column classes
+    for(l in lst)
     {
-        i <- i+1L;
-        mtx[i,] <- as.character(lst[[i]]);
-        j <- which(is.na(t))
-        if(length(j)<1L)
+        i <- which(is.na(t));
+        if(length(i)<1L)
             break;
-        t[j] <- sapply(lst[[i]], class);
+        j <- which(!is.na(l));
+        if(length(j)<1L)
+            next;
+        x <- intersect(names(t[i]), names(l[j]));
+        if(length(x)<1L)
+            next;
+        t[x] <- sapply(l[x], class);
     }
-    while(i < n)
+    t <- as.character(t);
+
+    ## temporary chrarcter matrix and empty data.frame.
+    d <- matrix(NA, n, m, dimnames=list(NULL, h));
+    f <- as.data.frame(d);
+
+    ## fill temporary matrix
+    for(i in 1L:n)
     {
-        i <- i+1L;
-        mtx[i,] <- as.character(lst[[i]]);
+        l <- lst[[i]];
+        if(length(l) > 0L)
+        {
+            d[i,] <- as.character(l[h]);
+        }
     }
 
-    ## the data frame
-    d <- as.data.frame(mtx, stringsAsFactors=F);
+    ## fill data.frame, complete type cast.
     for(i in 1L:m)
     {
-        d[[i]] <- as(d[[i]], t[i]);
+        f[,i] <- as(d[,i], t[i]);
     }
-    d;
+    f;
 }
