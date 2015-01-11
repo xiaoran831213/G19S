@@ -4,6 +4,29 @@ source('src/bza.R')
 
 ANL <- new.env();
 
+## f ---- U kernel
+## r ---- residual matrix
+## w1, ... ---- weight terms.
+ANL$dg2 <- function(f, r, w1, ...)
+{
+    ## get product of all weight terms.
+    w <- Reduce(f='*', x=list(w1, ...));
+    diag(w) <- 0; # ??
+    
+    ## compute U score
+    u <- sum(w*f);
+
+    ## exclude coveriant effect on both dimensions of w. Residual of W is RWR',
+    ## since R is symmetric, RWR' equals RWR
+    w <- r %*% w
+    w <- w %*% r;
+
+    ## calculate p-value of u.
+    coef <- eigen(w, symmetric=T, only.values=T)$values;
+    p <- davies(u, coef, acc=0.000001)$Qq;
+    p
+}
+
 ## gmx --- genomic matrix
 ##     row: individual
 ##     col: genome variant
@@ -14,15 +37,15 @@ ANL <- new.env();
 ## cvr --- covariants
 ##     row: individual
 ##     col: varaint
-ANL$bza <- function(gmx, pos, emx, rsp, cvr, ...)
+ANL$bza <- function(gmx, pos, emx, f, r, ...)
 {
     out <- list();
-    f <- BZA$fit(gmx, pos, frm=0L);
+    bz <- BZA$fit(gmx, pos, frm=0L);
      
-    w1 <- HWU$weight.gaussian(t(f$gmx));
-    w2 <- HWU$weight.gaussian(t(f$pos));
+    w1 <- HWU$weight.gaussian(t(bz$gmx));
+    w2 <- HWU$weight.gaussian(t(bz$pos));
     
-    out$bgp <- dg2(rsp, cvr, w1*w2);
+    out$G <- ANL$dg2(f, r, w1, w2);
 
     ## g <- HWU$collapse.burden(t(gmx));
     ## wg <- HWU$weight.gaussian(g);
@@ -38,14 +61,14 @@ ANL$bza <- function(gmx, pos, emx, rsp, cvr, ...)
     out;
 }
     
-ANL$go <- function(exp, rng, phe, rsp, cov, pcs=NULL, imp=T, FUN=ANL$hwu, ...)
+ANL$go <- function(exp, rng, phe, rsp, cvr, pcs=NULL, imp=F, ...)
 {
     ## get individual list from the first gene record.
     rng <- rng[, list(SEQ, CHR, BP1, BP2, GEN, PRB)];
     idv <- HLP$gld(rng[1L,])$idv;
 
     ## extract phenotype and covariants.
-    phe<-phe[, c("IID", rsp, cov)];
+    phe<-phe[, c("IID", rsp, cvr)];
     phe<-HLP$clrMss(phe);
 
     ## align tables by indidivual id
@@ -59,14 +82,30 @@ ANL$go <- function(exp, rng, phe, rsp, cov, pcs=NULL, imp=T, FUN=ANL$hwu, ...)
     stopifnot(identical(idv[gdx], exp$idv[edx]));
     
     ## response and covariate
-    rsp<-as.matrix(phe[pdx, rsp], rownames.force = F);   # response variable
-    cov<-as.matrix(phe[pdx, cov], rownames.force = F);   # covariants
+    y<-as.matrix(phe[pdx, rsp], rownames.force = F);   # response variable
+    M <- length(y);
 
-    ## incroporate PCAs into covariants matrix.
-    if(!is.null(pcs))
+    ## standardize y to m=0, s=1
+    y <- rank(y);
+    y <- (y-mean(y))/sd(y);
+    
+    ## covariants
+    x<-as.matrix(phe[pdx, cvr], rownames.force = F);
+    x <- cbind(1, x);       # intercept
+    if(!is.null(pcs))       # PCAs
     {
-        cov <- cbind(cov, pcs[gdx,]);
+        x <- cbind(x, pcs[gdx,]);
     }
+    
+    ## regression residual matrix, R = I - X(X'X)^X'
+    r <- diag(1, M, M) - tcrossprod(x %*% solve(crossprod(x)), x);
+    
+    ## exclude liner covariant effect on y, leave residual of Y
+    y <- r %*% y;
+    y <- y/sqrt(sum(y^2)/(M-ncol(x)));
+ 
+    ## the U kernel is the pair wise similarity between phenotypes
+    f <- tcrossprod(y);
     
     ## prepare output containers
     nrg <- nrow(rng);
@@ -124,15 +163,16 @@ ANL$go <- function(exp, rng, phe, rsp, cov, pcs=NULL, imp=T, FUN=ANL$hwu, ...)
                 gmx[j, is.na(gmx[j,])]<-avg[j];
         }
         
-        r<-FUN(gmx=gmx, emx=emx, rsp=rsp, cvr=cov, pos=pos, ...);
-        if (inherits(r, "try-error"))
+        o <-ANL$bza(gmx, pos, emx, f, r);
+            ##FUN(gmx=gmx, emx=emx, rsp=rsp, cvr=cov, pos=pos, ...);
+        if (inherits(o, "try-error"))
         {
-            err[i] <- errMsg(p);
+            err[i] <- errMsg(o);
             next;
         }
         
         ## record result.
-        out[[i]] <- r;
+        out[[i]] <- o;
 
         ## report progress.
         HLP$shwPrg(nrg, i, 100L);
