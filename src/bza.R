@@ -303,16 +303,16 @@ BZA$pic <- function(r, out=NULL, res=1.0, ...)
 ##    for a genotype matrix, one column is one sample's genotype
 ## ... additional function matrix, must be indentical in dimension
 ## time --- time frame to take sample from the functions.
-BZA$dff <- function(time, fmx, ..., norm=NULL)
+BZA$dff <- function(t, f, ..., scl=1, sqr=F)
 {
     ## list of fitted functions
-    lsf <- list(fmx, ...);
+    lsf <- list(f, ...);
     
     ## number of individuals
-    S <- ncol(fmx);
+    S <- ncol(f);
     
     ## number of sample time
-    M <- length(time);
+    M <- length(t);
     
     ## all pair combinations
     C <- combn(S,2L);
@@ -322,7 +322,7 @@ BZA$dff <- function(time, fmx, ..., norm=NULL)
     q <- p-1L;
 
     # M-1 sample intervals
-    dt <- time[p]-time[q];
+    dt <- t[p]-t[q];
 
     ## iterate individual pairs, fill up pairwise distance matrix
     dm <- matrix(0, S, S);
@@ -334,18 +334,17 @@ BZA$dff <- function(time, fmx, ..., norm=NULL)
         ## get square distance between individual i and j
         df <- 0;
         for(f in lsf)
-        {
             df <- df + (f[,i]-f[,j])^2;
-        }
+
+        ## require squre distance?
+        ## if(!sqr)
+        ##     df <- sqrt(df);
         
         ## integrate over all sample intervals
         dm[i,j] <- sum((df[p]+df[q])*dt)/2;
         dm[j,i] <- dm[i,j];
     }
-
-    if(!is.null(norm))
-        dm <- norm(dm);
-    dm;
+    dm*scl;
 }
 
 ## scale to [0,1] normalization

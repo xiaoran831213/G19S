@@ -22,9 +22,17 @@ ANL$dg2 <- function(f, r, w1, ...)
     w <- w %*% r;
 
     ## calculate p-value of u.
-    coef <- eigen(w, symmetric=T, only.values=T)$values;
-    p <- davies(u, coef, acc=0.000001)$Qq;
-    p
+    r <- try(eigen(w, symmetric=T, only.values=T));
+    if (inherits(r, "try-error"))
+    {
+        r <- -1;
+    }
+    else
+    {
+        r <- r$values;
+        r <- davies(u, r, acc=0.000001)$Qq;
+    }
+    r;
 }
 
 ## gmx --- genomic matrix
@@ -40,11 +48,11 @@ ANL$dg2 <- function(f, r, w1, ...)
 ANL$bza <- function(gmx, pos, emx, f, r, ...)
 {
     out <- list();
-    bz <- BZA$fit(gmx, pos, frm=0L);
-     
+    bz <- BZA$fit(gmx, pos);
+    ##dm <- BZA$dff(t=bz$time, f=bz$gmx, bz$pos, sqr=T)
+    
     w1 <- HWU$weight.gaussian(t(bz$gmx));
     w2 <- HWU$weight.gaussian(t(bz$pos));
-    
     out$G <- ANL$dg2(f, r, w1, w2);
 
     ## g <- HWU$collapse.burden(t(gmx));
@@ -163,7 +171,7 @@ ANL$go <- function(exp, rng, phe, rsp, cvr, pcs=NULL, imp=F, ...)
                 gmx[j, is.na(gmx[j,])]<-avg[j];
         }
         
-        o <-ANL$bza(gmx, pos, emx, f, r);
+        o <- ANL$bza(gmx, pos, emx, f, r);
             ##FUN(gmx=gmx, emx=emx, rsp=rsp, cvr=cov, pos=pos, ...);
         if (inherits(o, "try-error"))
         {
